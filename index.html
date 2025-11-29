@@ -102,10 +102,41 @@
             border-radius: 5px;
         }
 
+        #fixed-footer-controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            padding: 15px 20px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            text-align: center; /* Center the buttons */
+            z-index: 1000;
+        }
+
+        #timer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #fff;
+            background-color: #c0392b;
+            padding: 10px 15px;
+            border-radius: 5px;
+            z-index: 1001;
+        }
+
+        body {
+            /* Add padding to the bottom of the body to prevent content from being hidden by the fixed footer */
+            padding-bottom: 70px; /* Approximate height of the fixed footer */
+        }
+
         /* Responsive design for mobile */
         @media (max-width: 600px) {
             body {
                 padding: 10px;
+                padding-bottom: 80px; /* Adjust for fixed footer */
             }
             .container {
                 padding: 15px;
@@ -117,36 +148,123 @@
                 padding: 10px 15px;
                 font-size: 14px;
             }
+            #fixed-footer-controls {
+                padding: 10px;
+            }
         }
+
+        /* Settings Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 25px 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .category-setting {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .category-setting label {
+            font-weight: bold;
+        }
+        .category-setting input {
+            width: 70px;
+            padding: 5px;
+            text-align: right;
+        }
+        #total-questions-info {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+        .settings-hint {
+            text-align: center;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-top: 15px;
+        }
+
     </style>
 </head>
 <body>
 
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-content">
+            <h2>測驗設定</h2>
+            <div id="category-settings-container"></div>
+            <div id="total-questions-info">總題數: 0</div>
+            <div class="settings-hint">提示：若未設定任何題數，點擊開始測驗將隨機抽選 50 題。</div>
+            <div style="text-align: center; margin-top: 25px;">
+                <button id="start-quiz-from-settings-btn">開始測驗</button>
+                <button id="cancel-settings-btn" style="background-color: #95a5a6;">取消</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <h1>民俗調理業經絡調理 測驗系統</h1>
-        <div class="controls">
-            <button id="start-btn">開始測驗 (50題)</button>
-            <button id="show-answers-btn" style="display: none;">查看答案</button>
-        </div>
-
         <div id="quiz-container"></div>
         <div id="score-container" style="display: none;"></div>
         <div id="result-container"></div>
+    </div>
 
+    <div id="timer" style="display: none;"></div>
+
+    <div id="fixed-footer-controls">
+        <button id="config-quiz-btn">新測驗 / 設定</button>
+        <button id="submit-btn" style="display: none;">提交答案</button>
     </div>
 
     <script>
-        const startBtn = document.getElementById('start-btn');
-        const showAnswersBtn = document.getElementById('show-answers-btn');
+        const configQuizBtn = document.getElementById('config-quiz-btn');
+        const submitBtn = document.getElementById('submit-btn');
         const quizContainer = document.getElementById('quiz-container');
         const resultContainer = document.getElementById('result-container');
         const scoreContainer = document.getElementById('score-container');
+        const timerDisplay = document.getElementById('timer');
+        const settingsModal = document.getElementById('settings-modal');
+        const categorySettingsContainer = document.getElementById('category-settings-container');
+        const startQuizFromSettingsBtn = document.getElementById('start-quiz-from-settings-btn');
+        const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
+        const totalQuestionsInfo = document.getElementById('total-questions-info');
+
 
         let allQuestions = [];
+        let questionsByCategory = {};
         let currentQuizQuestions = [];
         let userAnswers = {};
+        let countdownInterval;
 
-        // 載入題庫
+        const categoryNames = {
+            '1': '工作項目 01：職業倫理與相關法規',
+            '2': '工作項目 02：民俗調理業經絡調理操作',
+            '3': '工作項目 03：顧客接待與服務',
+            '90006': '共同科目90006：職業安全衛生',
+            '90007': '共同科目90007：工作倫理與職業道德',
+            '90008': '共同科目90008：環境保護',
+            '90009': '共同科目90009：節能減碳'
+        };
+        const categoryDisplayOrder = ['1', '2', '3', '90006', '90007', '90008', '90009'];
+
+        // 載入題庫並解析分類
         async function loadQuestions() {
             try {
                 const response = await fetch('./b00010_questions_full.json');
@@ -154,30 +272,105 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 allQuestions = await response.json();
-                startBtn.disabled = false;
-                console.log(`成功載入 ${allQuestions.length} 題題目。`);
+                
+                // Group questions by category
+                allQuestions.forEach(q => {
+                    const category = q.code.split('-')[0];
+                    if (!questionsByCategory[category]) {
+                        questionsByCategory[category] = [];
+                    }
+                    questionsByCategory[category].push(q);
+                });
+
+                populateSettingsModal();
+                configQuizBtn.disabled = false;
+                console.log(`成功載入 ${allQuestions.length} 題題目，共 ${Object.keys(questionsByCategory).length} 個分類。`);
             } catch (error) {
                 quizContainer.innerHTML = `<p style="color: red; text-align: center;">錯誤：無法載入題庫檔案 (b00010_questions_full.json)。請確認檔案存在於同一個目錄下。</p>`;
                 console.error("載入題庫失敗:", error);
             }
         }
 
-        // 開始測驗
-        function startQuiz() {
-            // 清理之前的狀態
+        // 填充設定面板
+        function populateSettingsModal() {
+            categorySettingsContainer.innerHTML = '';
+            categoryDisplayOrder.forEach(category => {
+                if (!questionsByCategory[category]) return; // 如果題庫中沒有該分類，則跳過
+
+                const categorySize = questionsByCategory[category].length;
+                const displayName = categoryNames[category] || `工作項目 ${category}`;
+                const settingEl = document.createElement('div');
+                settingEl.className = 'category-setting';
+                settingEl.innerHTML = `
+                    <label for="cat_${category}">${displayName} (共 ${categorySize} 題)</label>
+                    <input type="number" id="cat_${category}" data-category="${category}" value="0" min="0" max="${categorySize}">
+                `;
+                categorySettingsContainer.appendChild(settingEl);
+            });
+        }
+
+        function updateTotals() {
+            let total = 0;
+            const inputs = categorySettingsContainer.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+                total += parseInt(input.value) || 0;
+            });
+            totalQuestionsInfo.textContent = `總題數: ${total}`;
+        }
+
+        // 顯示設定
+        function showSettings() {
+            settingsModal.style.display = 'flex';
+        }
+
+        // 隱藏設定
+        function hideSettings() {
+            settingsModal.style.display = 'none';
+        }
+
+        // 從設定開始測驗
+        function startQuizFromSettings() {
             currentQuizQuestions = [];
+            const inputs = categorySettingsContainer.querySelectorAll('input[type="number"]');
+            let totalQuestions = 0;
+
+            inputs.forEach(input => {
+                totalQuestions += parseInt(input.value) || 0;
+            });
+
+            // 如果使用者未設定任何題目，則觸發預設行為
+            if (totalQuestions === 0) {
+                totalQuestions = 50;
+                const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
+                currentQuizQuestions = shuffled.slice(0, 50);
+            } else {
+                // 根據使用者設定建立題目列表
+                inputs.forEach(input => {
+                    const category = input.dataset.category;
+                    const count = parseInt(input.value) || 0;
+                    if (count > 0 && questionsByCategory[category]) {
+                        const shuffled = [...questionsByCategory[category]].sort(() => 0.5 - Math.random());
+                        currentQuizQuestions.push(...shuffled.slice(0, count));
+                    }
+                });
+                 // 再次隨機排序，讓不同分類的題目混合
+                currentQuizQuestions.sort(() => 0.5 - Math.random());
+            }
+
+            hideSettings();
+            startQuiz(totalQuestions);
+        }
+
+        // 開始測驗
+        function startQuiz(totalQuestions) {
+            // 清理之前的狀態
             userAnswers = {};
             quizContainer.innerHTML = '';
             resultContainer.innerHTML = '';
             scoreContainer.style.display = 'none';
-            
-            // 隨機抽選 50 題
-            const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
-            currentQuizQuestions = shuffled.slice(0, 50);
 
             // 顯示題目
             currentQuizQuestions.forEach((q, index) => {
-                // 從問題字串中解析選項
                 const parts = q.question.split(/\s*([\(（][1-4][\)）])/).filter(part => part && part.trim() !== '');
                 const questionText = parts[0];
                 const options = [];
@@ -211,12 +404,41 @@
                 }
             });
 
-            startBtn.style.display = 'none';
-            showAnswersBtn.style.display = 'inline-block';
+            configQuizBtn.style.display = 'none';
+            submitBtn.style.display = 'inline-block';
+            const timePerQuestion = 72; // 72 seconds per question (1 hour for 50 questions)
+            startTimer(totalQuestions * timePerQuestion);
+        }
+
+        // 開始計時器
+        function startTimer(duration) {
+            let timer = duration;
+            timerDisplay.style.display = 'block';
+
+            countdownInterval = setInterval(() => {
+                let minutes = parseInt(timer / 60, 10);
+                let seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                timerDisplay.textContent = minutes + ":" + seconds;
+
+                if (--timer < 0) {
+                    clearInterval(countdownInterval);
+                    alert("時間到！將自動提交答案。");
+                    showAnswers();
+                }
+            }, 1000);
         }
 
         // 顯示答案
+
+        // 顯示答案
         function showAnswers() {
+            clearInterval(countdownInterval); // 停止計時器
+            timerDisplay.style.display = 'none'; // 隱藏計時器
+
             quizContainer.innerHTML = ''; // 清空測驗題目
             resultContainer.innerHTML = '<h2>完整詳解</h2>';
             let correctCount = 0;
@@ -262,22 +484,26 @@
             });
             
             // 顯示分數
-            const score = (correctCount / currentQuizQuestions.length) * 100;
-            scoreContainer.innerHTML = `本次測驗得分: ${score.toFixed(1)} / 100 (${correctCount} / ${currentQuizQuestions.length})`;
+            const totalQuestions = currentQuizQuestions.length;
+            const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+            scoreContainer.innerHTML = `本次測驗得分: ${score.toFixed(1)} / 100 (${correctCount} / ${totalQuestions})`;
             scoreContainer.style.display = 'block';
 
-            showAnswersBtn.style.display = 'none';
-            startBtn.style.display = 'inline-block';
-            startBtn.textContent = '再測一次';
+            submitBtn.style.display = 'none';
+            configQuizBtn.style.display = 'inline-block';
         }
 
         // 綁定事件
-        startBtn.addEventListener('click', startQuiz);
-        showAnswersBtn.addEventListener('click', showAnswers);
+        configQuizBtn.addEventListener('click', showSettings);
+        cancelSettingsBtn.addEventListener('click', hideSettings);
+        startQuizFromSettingsBtn.addEventListener('click', startQuizFromSettings);
+        submitBtn.addEventListener('click', showAnswers);
+        categorySettingsContainer.addEventListener('change', updateTotals);
+
 
         // 頁面載入時，立即載入題庫
         window.onload = () => {
-            startBtn.disabled = true;
+            configQuizBtn.disabled = true;
             loadQuestions();
         };
 
