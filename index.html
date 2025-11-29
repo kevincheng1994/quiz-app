@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>民俗調理業經絡調理 測驗系統</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        #show-answers-btn {
+            background-color: #2ecc71;
+        }
+        #show-answers-btn:hover {
+            background-color: #27ae60;
+        }
+        .question-card {
+            background: #ecf0f1;
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 5px solid #3498db;
+        }
+        .question-card.result-card {
+             border-left: 5px solid #9b59b6;
+        }
+        .question-text {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .options label {
+            display: block;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        .options input {
+            margin-right: 10px;
+        }
+        .result {
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .correct-answer {
+            color: #e74c3c;
+        }
+        .user-answer.correct {
+            color: #27ae60;
+        }
+        .user-answer.incorrect {
+            color: #c0392b;
+            text-decoration: line-through;
+        }
+        #score-container {
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+        }
+
+        /* Responsive design for mobile */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>民俗調理業經絡調理 測驗系統</h1>
+        <div class="controls">
+            <button id="start-btn">開始測驗 (50題)</button>
+            <button id="show-answers-btn" style="display: none;">查看答案</button>
+        </div>
+
+        <div id="quiz-container"></div>
+        <div id="score-container" style="display: none;"></div>
+        <div id="result-container"></div>
+
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const showAnswersBtn = document.getElementById('show-answers-btn');
+        const quizContainer = document.getElementById('quiz-container');
+        const resultContainer = document.getElementById('result-container');
+        const scoreContainer = document.getElementById('score-container');
+
+        let allQuestions = [];
+        let currentQuizQuestions = [];
+        let userAnswers = {};
+
+        // 載入題庫
+        async function loadQuestions() {
+            try {
+                const response = await fetch('./b00010_questions_full.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                allQuestions = await response.json();
+                startBtn.disabled = false;
+                console.log(`成功載入 ${allQuestions.length} 題題目。`);
+            } catch (error) {
+                quizContainer.innerHTML = `<p style="color: red; text-align: center;">錯誤：無法載入題庫檔案 (b00010_questions_full.json)。請確認檔案存在於同一個目錄下。</p>`;
+                console.error("載入題庫失敗:", error);
+            }
+        }
+
+        // 開始測驗
+        function startQuiz() {
+            // 清理之前的狀態
+            currentQuizQuestions = [];
+            userAnswers = {};
+            quizContainer.innerHTML = '';
+            resultContainer.innerHTML = '';
+            scoreContainer.style.display = 'none';
+            
+            // 隨機抽選 50 題
+            const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
+            currentQuizQuestions = shuffled.slice(0, 50);
+
+            // 顯示題目
+            currentQuizQuestions.forEach((q, index) => {
+                // 從問題字串中解析選項
+                const parts = q.question.split(/\s*([\(（][1-4][\)）])/).filter(part => part && part.trim() !== '');
+                const questionText = parts[0];
+                const options = [];
+                for (let i = 1; i < parts.length; i += 2) {
+                    if (parts[i] && parts[i+1]) {
+                        options.push(parts[i].trim() + " " + parts[i+1].trim());
+                    }
+                }
+                
+                const questionCard = document.createElement('div');
+                questionCard.className = 'question-card';
+                questionCard.innerHTML = `
+                    <div class="question-text">${index + 1}. ${questionText}</div>
+                    <div class="options" data-question-code="${q.code}">
+                        ${options.map((opt, i) => `
+                            <label>
+                                <input type="radio" name="question_${q.code}" value="${i + 1}">
+                                ${opt}
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+                quizContainer.appendChild(questionCard);
+            });
+            
+            // 監聽答案選擇
+            quizContainer.addEventListener('change', (event) => {
+                if (event.target.type === 'radio') {
+                    const questionCode = event.target.name.replace('question_', '');
+                    userAnswers[questionCode] = event.target.value;
+                }
+            });
+
+            startBtn.style.display = 'none';
+            showAnswersBtn.style.display = 'inline-block';
+        }
+
+        // 顯示答案
+        function showAnswers() {
+            quizContainer.innerHTML = ''; // 清空測驗題目
+            resultContainer.innerHTML = '<h2>完整詳解</h2>';
+            let correctCount = 0;
+
+            currentQuizQuestions.forEach((q, index) => {
+                const userAnswer = userAnswers[q.code];
+                const isCorrect = userAnswer === q.answer;
+                if (isCorrect) {
+                    correctCount++;
+                }
+                
+                // 從問題字串中解析選項
+                const parts = q.question.split(/\s*([\(（][1-4][\)）])/).filter(part => part && part.trim() !== '');
+                const questionText = parts[0];
+                const options = [];
+                for (let i = 1; i < parts.length; i += 2) {
+                     if (parts[i] && parts[i+1]) {
+                        options.push(parts[i].trim() + " " + parts[i+1].trim());
+                    }
+                }
+
+                const resultCard = document.createElement('div');
+                resultCard.className = 'question-card result-card';
+                resultCard.innerHTML = `
+                    <div class="question-text">${index + 1}. ${questionText}</div>
+                    <div class="options">
+                        ${options.map((opt, i) => {
+                            const optionValue = i + 1;
+                            let userMark = '';
+                            if (String(optionValue) === userAnswer) {
+                                userMark = isCorrect 
+                                    ? `<span class="user-answer correct"> (您的答案)</span>`
+                                    : `<span class="user-answer incorrect"> (您的答案)</span>`;
+                            }
+                            if (String(optionValue) === q.answer) {
+                                return `<div class="correct-answer">${opt}${userMark}</div>`;
+                            }
+                            return `<div>${opt}${userMark}</div>`;
+                        }).join('')}
+                    </div>
+                `;
+                resultContainer.appendChild(resultCard);
+            });
+            
+            // 顯示分數
+            const score = (correctCount / currentQuizQuestions.length) * 100;
+            scoreContainer.innerHTML = `本次測驗得分: ${score.toFixed(1)} / 100 (${correctCount} / ${currentQuizQuestions.length})`;
+            scoreContainer.style.display = 'block';
+
+            showAnswersBtn.style.display = 'none';
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = '再測一次';
+        }
+
+        // 綁定事件
+        startBtn.addEventListener('click', startQuiz);
+        showAnswersBtn.addEventListener('click', showAnswers);
+
+        // 頁面載入時，立即載入題庫
+        window.onload = () => {
+            startBtn.disabled = true;
+            loadQuestions();
+        };
+
+    </script>
+</body>
+</html>
