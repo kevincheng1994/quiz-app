@@ -25,7 +25,15 @@
             text-align: center;
             color: #2c3e50;
         }
-        .controls {
+        #view-counter {
+            font-size: 0.8em;
+            font-weight: normal;
+            color: #7f8c8d;
+            display: block;
+            text-align: center;
+            margin-top: -20px;
+            margin-bottom: 10px;
+        }        .controls {
             text-align: center;
             margin-bottom: 30px;
         }
@@ -276,6 +284,7 @@
 
     <div class="container">
         <h2>民俗調理業經絡調理 測驗系統</h2>
+        <span id="view-counter"></span>
         <div id="quiz-container"></div>
         <div id="score-container" style="display: none;"></div>
         <div id="result-container"></div>
@@ -580,10 +589,29 @@
         categorySettingsContainer.addEventListener('input', updateTotals);
 
 
+        async function updateViewCount() {
+            const counterElement = document.getElementById('view-counter');
+            if (!counterElement) return;
+
+            try {
+                const response = await fetch('https://api.counterapi.dev/v1/b00010-quiz-app/views/up');
+                if (!response.ok) {
+                   counterElement.textContent = '(無法取得瀏覽次數)';
+                   return;
+                }
+                const data = await response.json();
+                counterElement.textContent = `(瀏覽次數: ${data.count})`;
+            } catch (error) {
+                console.error("View counter failed:", error);
+                counterElement.textContent = '(無法取得瀏覽次數)';
+            }
+        }
+
         // 頁面載入時，立即載入題庫
         window.onload = () => {
             configQuizBtn.disabled = true;
             loadQuestions();
+            updateViewCount();
         };
 
     </script>
