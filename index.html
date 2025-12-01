@@ -162,6 +162,37 @@
             #fixed-footer-controls {
                 padding: 10px;
             }
+            .modal-content {
+                padding: 15px 10px; /* Further reduce padding */
+            }
+            .modal-content h2 {
+                font-size: 1.3em;
+                margin-top: 0;
+                margin-bottom: 15px;
+            }
+            .category-setting {
+                align-items: flex-start;
+                margin-bottom: 8px; /* Further reduce space */
+            }
+            .category-setting label {
+                margin-right: 10px;
+                word-break: break-all;
+                font-size: 14px; /* Reduce font size */
+            }
+            .category-setting input {
+                padding: 5px; /* Reduce input padding */
+            }
+            #total-questions-info {
+                font-size: 1em;
+                margin-top: 15px;
+            }
+            .settings-hint {
+                font-size: 0.8em;
+                margin-top: 10px;
+            }
+            .modal-buttons {
+                margin-top: 15px;
+            }
         }
 
         /* Settings Modal Styles */
@@ -209,8 +240,12 @@
         .settings-hint {
             text-align: center;
             font-size: 0.9em;
-            color: #7f8c8d;
+            color: #ff0000;
             margin-top: 15px;
+        }
+
+        .modal-buttons {
+            margin-top: 25px;
         }
 
     </style>
@@ -231,8 +266,8 @@
             <h2>測驗設定</h2>
             <div id="category-settings-container"></div>
             <div id="total-questions-info">總題數: 0</div>
-            <div class="settings-hint">提示：若未設定任何題數，點擊開始測驗將隨機抽選 50 題。</div>
-            <div style="text-align: center; margin-top: 25px;">
+            <div class="settings-hint">※ 若未設定題數，點擊開始測驗將隨機抽選 50 題 </div>
+            <div class="modal-buttons" style="text-align: center;">
                 <button id="start-quiz-from-settings-btn">開始測驗</button>
                 <button id="cancel-settings-btn" style="background-color: #95a5a6;">取消</button>
             </div>
@@ -240,7 +275,7 @@
     </div>
 
     <div class="container">
-        <h1>民俗調理業經絡調理 測驗系統</h1>
+        <h2>民俗調理業經絡調理 測驗系統</h2>
         <div id="quiz-container"></div>
         <div id="score-container" style="display: none;"></div>
         <div id="result-container"></div>
@@ -322,7 +357,7 @@
                 const settingEl = document.createElement('div');
                 settingEl.className = 'category-setting';
                 settingEl.innerHTML = `
-                    <label for="cat_${category}">${displayName} (共 ${categorySize} 題)</label>
+                    <label for="cat_${category}">${displayName}</label>
                     <input type="number" id="cat_${category}" data-category="${category}" value="0" min="0" max="${categorySize}">
                 `;
                 categorySettingsContainer.appendChild(settingEl);
@@ -498,7 +533,7 @@
                     const options = [];
                     for (let i = 1; i < parts.length; i += 2) {
                         if (parts[i] && parts[i+1]) {
-                            options.push(parts[i].trim() + " " + parts[i+1].trim());
+                            options.push(parts[i].trim() + " " + parts[i+1].replaceAll(" ", "").replaceAll("。", ""));
                         }
                     }
 
@@ -542,7 +577,7 @@
         cancelSettingsBtn.addEventListener('click', hideSettings);
         startQuizFromSettingsBtn.addEventListener('click', startQuizFromSettings);
         submitBtn.addEventListener('click', () => showAnswers(false)); // 使用匿名函式確保參數正確
-        categorySettingsContainer.addEventListener('change', updateTotals);
+        categorySettingsContainer.addEventListener('input', updateTotals);
 
 
         // 頁面載入時，立即載入題庫
